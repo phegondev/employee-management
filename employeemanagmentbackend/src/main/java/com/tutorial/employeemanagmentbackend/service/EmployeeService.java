@@ -3,6 +3,7 @@ package com.tutorial.employeemanagmentbackend.service;
 import com.tutorial.employeemanagmentbackend.model.Employee;
 import com.tutorial.employeemanagmentbackend.repository.EmployeeRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -26,7 +27,7 @@ public class EmployeeService implements EmployeeServiceInterface {
 
     @Override
     public List<Employee> getAllEmployee() {
-        return employeeRepository.findAll();
+        return employeeRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
     }
 
     @Override
