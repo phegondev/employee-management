@@ -5,12 +5,16 @@ FROM node:16
 RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
 # Set the working directory
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Copy only the necessary files
-COPY package*.json ./
+# Copy package.json and package-lock.json to the working directory
+COPY package.json package-lock.json /app/
+
+# Install dependencies
 RUN npm install
-COPY . .
+
+# Copy the entire codebase to the working directory
+COPY . /app/
 
 # Use a non-root user
 USER appuser
