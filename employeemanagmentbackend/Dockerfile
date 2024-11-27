@@ -16,11 +16,6 @@ RUN chown -R appuser:appgroup /app
 # Switch to the non-root user
 USER appuser
 
-# Define an environment variable for the port (optional, can be overridden)
-ENV SERVER_PORT=8081
-
 # Run the application
-ENTRYPOINT ["java", "-jar", "/app/app.jar", "--server.port=${SERVER_PORT}"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
 
-# Expose the application port
-EXPOSE 8081
