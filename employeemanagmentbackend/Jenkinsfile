@@ -1,0 +1,108 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'jdk'
+        nodejs 'node16'
+    }
+
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+        DOCKER_REGISTRY = "localhost:5000"
+        REGISTRY_CREDENTIALS_ID = "docker-registry"
+        BUILD_TAG = "${env.BUILD_TAG}"
+	    emplbackend_IMAGE_NAME = "empl-backend"
+	    emplbackend_CONTAINER_NAME = "empl-backend"
+    }
+
+    stages {
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/Vinitha-Nayak/employee-management.git'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                dir('employeemanagmentbackend') {
+                    sh 'mvn clean package'
+                }
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+                        dir('employeemanagmentbackend') {
+                            sh ''' 
+                                $SCANNER_HOME/bin/sonar-scanner \
+                                -Dsonar.projectName=emp-backend \
+                                -Dsonar.java.binaries=. \
+                                -Dsonar.projectKey=emp-backend
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+        stage('Quality Check') {
+            steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'sonar-token'
+                }
+            }
+        }
+        stage('Trivy File Scan') {
+            steps {
+                dir('employeemanagmentbackend') {
+                    sh 'trivy fs . > trivyfs.txt'
+                }
+            }
+        }
+        stage('Build and Push Image') {
+            steps {
+                dir('employeemanagmentbackend') { // Specify the working directory
+                    script {
+                        withCredentials([usernamePassword(
+                            credentialsId: "${REGISTRY_CREDENTIALS_ID}",
+                            usernameVariable: 'REGISTRY_USER',
+                            passwordVariable: 'REGISTRY_PASS'
+                        )]) {
+                            // Log in to Docker registry
+                            sh 'docker login -u $REGISTRY_USER -p $REGISTRY_PASS $DOCKER_REGISTRY'
+        
+                            // Build the Docker image
+                            sh 'docker build -t ${DOCKER_REGISTRY}/${emplbackend_IMAGE_NAME}:${BUILD_TAG} .'
+        
+                            // Tag the Docker image (optional, depending on naming strategy)
+                            //sh 'docker tag ${DOCKER_REGISTRY}/${emplbackend_IMAGE_NAME}:${BUILD_TAG}'
+        
+                            // Push the Docker image to the registry
+                            sh 'docker push ${DOCKER_REGISTRY}/${emplbackend_IMAGE_NAME}:${BUILD_TAG}'
+                        }
+                    }
+                }
+            }
+        }
+        stage('Run Image') {
+            steps {
+                script {
+                    sh 'docker run -d -p 8082:8080 localhost:5000/empl-backend'
+                }
+            }
+        }
+        stage('Trivy Image Scan') {
+            steps {
+                script {
+                    sh 'trivy image ${DOCKER_REGISTRY}/${emplbackend_IMAGE_NAME}:${BUILD_TAG} > trivy.txt'
+                }
+            }
+        }
+    }
+}
